@@ -1,0 +1,13 @@
+Paste these as TWO environment variables in Netlify before your first deployment.
+Project configuration > Environment variables > Add a variable
+Scope: Builds and Functions (or All scopes), value for Production.
+
+Name: NEXT_PUBLIC_SUPABASE_URL
+Value: https://iuqzvgxgfwtfasdrghdv.supabase.co
+
+Name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+Value: sb_publishable_k3mXf8szE3X-7Lw0ZoUJdg_RiCHbWw1
+
+These are public client configuration values, not server secrets.
+Do not add a database password, service_role key, sb_secret key or GitHub token.
+After changing either value, redeploy the project.

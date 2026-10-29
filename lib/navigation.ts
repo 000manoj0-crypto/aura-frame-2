@@ -1,0 +1,1 @@
+export function safeNext(v:unknown){return typeof v==='string'&&v.startsWith('/')&&!v.startsWith('//')&&!v.includes('\\')&&!/[\x00-\x1f]/.test(v)&&!v.startsWith('/auth/')&&!v.startsWith('/logout')&&!v.startsWith('/login')?v:'/'}

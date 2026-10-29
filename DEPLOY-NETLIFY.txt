@@ -1,0 +1,41 @@
+AURA FRAMES — NETLIFY PE LIVE KAISE KAREIN (GitHub method)
+
+DHYAN DO: Is zip ko app.netlify.com/drop pe drag-drop MAT karna.
+Ye Next.js app hai, isko build aur server functions chahiye, jo drag-drop me nahi hote.
+
+STEP 1 — GitHub pe code daalo
+ 1. github.com pe login karo (free account).
+ 2. Upar "+" > "New repository". Naam: aura-frames. Private ya Public, kuch bhi. "Create repository".
+ 3. Is zip ko computer pe extract karo.
+ 4. Repo page pe "uploading an existing file" link dabao.
+ 5. Extract kiye folder ke ANDAR ki saari files aur folders select karke drag karo
+    (package.json seedha root pe dikhna chahiye, kisi folder ke andar nahi).
+ 6. Niche "Commit changes" dabao.
+
+STEP 2 — Netlify se jodo
+ 1. app.netlify.com pe login karo (kisi bhi email se).
+ 2. "Add new project" > "Import an existing project" > "GitHub".
+ 3. GitHub ko permission do, phir aura-frames repo select karo.
+ 4. Build settings apne aap netlify.toml se aa jayengi, kuch mat badlo.
+ 5. Deploy se pehle "Add environment variables" me ye do daalo:
+      NEXT_PUBLIC_SUPABASE_URL = https://iuqzvgxgfwtfasdrghdv.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = sb_publishable_k3mXf8szE3X-7Lw0ZoUJdg_RiCHbWw1
+ 6. "Deploy" dabao. 2-4 minute me link mil jayega (kuch.netlify.app).
+
+STEP 3 — Supabase me Netlify ka link daalo
+ Kholo: https://supabase.com/dashboard/project/iuqzvgxgfwtfasdrghdv/auth/url-configuration
+   Site URL      = https://TERA-LINK.netlify.app
+   Redirect URLs = https://TERA-LINK.netlify.app/auth/callback   (Add karke Save)
+
+STEP 4 — Seller account
+ 1. Netlify link Chrome me kholo > "Create account" > 000manoj0@gmail.com se signup.
+ 2. Phir kholo: https://TERA-LINK.netlify.app/seller  → Seller Studio.
+ 3. Agar "Only the authorised Aura Frames seller..." aaye to Supabase SQL Editor me
+    supabase/04-owner-email.sql ka text paste karke Run karo, phir page refresh.
+    (Tables na milne ka error aaye to pehle 01-schema.sql run karo, phir 04.)
+
+STEP 5 — Buyer test
+ Incognito window me kisi aur Gmail se signup karo > shop page khulega.
+ Seller Studio me product publish karo > buyer page refresh karo > product dikhega.
+
+Checkout TEST MODE me hai. Online card/UPI connected nahi hai.

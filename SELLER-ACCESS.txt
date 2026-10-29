@@ -1,0 +1,13 @@
+SELLER SETUP UPDATE
+
+Approved seller email: 000manoj0@gmail.com
+The verified-owner trigger has already been applied to the connected Supabase project.
+Create your Aura account using this exact Gmail, verify the email, then sign in.
+The account will automatically receive seller access. No password was created or stored for you.
+Open your actual Netlify website URL followed by /seller/ to enter Seller Studio.
+Alternatively, after signing in, open Account > Seller Studio.
+Other users can create and verify their own accounts and will remain buyers.
+Supabase email/password signup must be enabled, URL Configuration must match your Netlify domain,
+and custom SMTP must be configured for public confirmation and recovery emails.
+Do not disable email verification: seller provisioning relies on a verified email.
+Checkout starts in test mode. UPI/cards are not connected.

@@ -1,0 +1,3 @@
+import {seller,product,json,error,originCheck,body} from '../../../../lib/server';import {validateProduct} from '../../../../lib/validation';
+export async function GET(){try{const {db}=await seller();const {data,error:e}=await db.from('aura_products').select('*').order('updated_at',{ascending:false});if(e)throw e;return json({products:(data||[]).map(product)})}catch(e){return error(e)}}
+export async function POST(req:Request){try{originCheck(req);const {db}=await seller();const p=validateProduct(await body(req));const {data,error:e}=await db.from('aura_products').upsert({id:p.id,payload:p,price:p.price,stock:p.stock,active:p.active,updated_at:new Date().toISOString()}).select().single();if(e)throw e;return json({product:product(data)})}catch(e){return error(e)}}

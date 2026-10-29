@@ -1,0 +1,2 @@
+import {user,body,json,error,originCheck,ApiError} from '../../../lib/server';
+export async function POST(req:Request){try{originCheck(req);const {db}=await user();const b=await body(req);if(typeof b.password!=='string'||b.password.length<8||b.password.length>128)throw new ApiError('Use a password with 8–128 characters.');const {error:e}=await db.auth.updateUser({password:b.password});if(e)throw new ApiError('Unable to update password. Please request a new reset link.');return json({ok:true})}catch(e){return error(e)}}

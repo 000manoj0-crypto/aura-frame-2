@@ -1,0 +1,3 @@
+'use client';
+import {useState} from 'react';
+export default function Logout(){const [error,setError]=useState('');async function logout(){try{const r=await fetch('/auth/logout',{method:'POST'});if(!r.ok)throw new Error('Sign out failed. Please try again.');location.assign('/login')}catch(e){setError(e.message)}}return <main className="auth-shell"><section className="auth-card"><p className="eyebrow">AURA FRAMES</p><h1>Sign out?</h1><p>Your orders will be here when you return.</p>{error&&<p role="alert">{error}</p>}<button className="button primary full" onClick={logout}>Sign out</button><a className="text-link" href="/account/">Stay signed in</a></section></main>}

@@ -1,0 +1,3 @@
+import {user,json,error,body,originCheck,databaseError} from '../../../lib/server';
+export async function GET(){try{const {db,userId}=await user();const {data,error:e}=await db.from('aura_orders').select('payload,status').eq('user_id',userId).order('created_at',{ascending:false}).limit(100);if(e)throw e;return json({orders:(data||[]).map(r=>({...r.payload,status:r.status}))})}catch(e){return error(e)}}
+export async function POST(req:Request){try{originCheck(req);const {db}=await user();const b=await body(req);const {data,error:e}=await db.rpc('aura_place_order',{p_key:b.requestKey,p_items:b.items,p_address:b.address,p_coupon:b.coupon||'',p_payment:b.payment});if(e)databaseError(e);return json({order:data},201)}catch(e){return error(e)}}

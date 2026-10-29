@@ -1,0 +1,55 @@
+import {PGlite} from '@electric-sql/pglite';
+import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db=new PGlite();let checks=0;
+await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,raw_user_meta_data jsonb);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth to authenticated,anon;grant execute on function auth.uid() to authenticated,anon;create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text);alter table storage.objects enable row level security;grant usage on schema storage to authenticated;grant select,insert on storage.objects to authenticated;`);
+await db.exec(await fs.readFile(new URL('../supabase/01-schema.sql',import.meta.url),'utf8'));
+const owner='00000000-0000-4000-8000-000000000001',buyer='00000000-0000-4000-8000-000000000002',other='00000000-0000-4000-8000-000000000003';
+await db.query('insert into auth.users(id,email) values($1,$2),($3,$4),($5,$6)',[owner,'seller@example.test',buyer,'buyer@example.test',other,'other@example.test']);
+await db.query('insert into public.aura_seller_accounts values($1)',[owner]);
+async function as(id){await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id||'']);await db.exec(id?'set role authenticated':'set role anon')}
+async function check(name,fn){await fn();checks++;console.log('PASS',name)}
+async function rejects(fn,pattern){await assert.rejects(fn,pattern)}
+const p={name:'Real Frame',category:'Sunglasses',collection:'Floral Edit',shape:'Square',images:['/api/media/product-test.jpg','/api/media/product-second.jpg'],colours:['Silver'],sizes:['Medium'],description:'Real product details',sample:false};
+const address={name:'Test Buyer',phone:'9876543210',line:'12 Test Street',locality:'Test Area',city:'Delhi',state:'Delhi',pin:'110001'};
+const items=[{id:'frame-1',qty:2,colour:'Silver',size:'Medium',price:1}];
+async function place(key,list=items,payment='cod'){return (await db.query('select public.aura_place_order($1,$2::jsonb,$3::jsonb,$4,$5) as o',[key,JSON.stringify(list),JSON.stringify(address),'AURA10',payment])).rows[0].o}
+await check('catalogue starts empty',async()=>assert.equal((await db.query('select count(*)::int n from aura_products')).rows[0].n,0));
+await as(null);await check('anonymous catalogue access denied',()=>rejects(()=>db.query('select * from aura_products'),/permission denied/));
+await check('anonymous checkout denied',()=>rejects(()=>place('anonymous-request-0001'),/permission denied/));
+await as(buyer);await check('buyer cannot self-promote seller role',()=>rejects(()=>db.query('insert into aura_seller_accounts values($1)',[buyer]),/permission denied/));
+await check('buyer cannot add aura_products',()=>rejects(()=>db.query('insert into aura_products values($1,$2,1000,5,true,now())',['blocked',p]),/row-level security/));
+await as(owner);await check('seller can create a draft',async()=>{await db.query('insert into aura_products values($1,$2,1000,5,false,now())',['frame-1',p]);assert.equal((await db.query('select public.aura_is_seller() s')).rows[0].s,true)});
+await as(buyer);await check('draft hidden from buyers',async()=>assert.equal((await db.query('select * from aura_products')).rows.length,0));
+await as(owner);await db.query("update aura_products set active=true where id='frame-1'");
+await as(buyer);await check('published product and first photo appear for buyers',async()=>assert.equal((await db.query('select * from aura_products')).rows[0].payload.images[0],p.images[0]));
+await check('online payments cannot produce a fake paid order',()=>rejects(()=>place('online-payment-request1',items,'upi'),/not connected/));
+await check('invalid variants rejected',()=>rejects(()=>place('invalid-variant-request1',[{...items[0],colour:'Red'}]),/valid colour/));
+let order;await check('server computes totals, ignoring tampered client prices',async()=>{order=await place('valid-checkout-request1');assert.equal(order.subtotal,2000);assert.equal(order.total,1800);assert.equal(order.preview,true)});
+await check('stock decremented once',async()=>assert.equal((await db.query("select stock from aura_products where id='frame-1'")).rows[0].stock,3));
+await check('retry idempotent',async()=>assert.equal((await place('valid-checkout-request1')).id,order.id));
+await check('retry does not decrement stock again',async()=>assert.equal((await db.query("select stock from aura_products where id='frame-1'")).rows[0].stock,3));
+await check('insufficient aggregate stock rejected',()=>rejects(()=>place('aggregate-stock-request1',[{...items[0],qty:2},{...items[0],qty:2}]),/Insufficient stock/));
+await check('stock unchanged on failed order',async()=>assert.equal((await db.query("select stock from aura_products where id='frame-1'")).rows[0].stock,3));
+await check('buyers cannot change order status directly',()=>rejects(()=>db.query("update aura_orders set status='Delivered'"),/permission denied/));
+await check('buyers cannot use seller RPC',()=>rejects(()=>db.query('select public.aura_update_order($1,$2,$3)',[order.id,'Packed','']),/Seller access/));
+await as(other);await check('other buyer cannot read aura_orders',async()=>assert.equal((await db.query('select * from aura_orders')).rows.length,0));
+await as(owner);await check('seller sees buyer order',async()=>assert.equal((await db.query('select * from aura_orders')).rows.length,1));
+await check('invalid status jump rejected',()=>rejects(()=>db.query('select public.aura_update_order($1,$2,$3)',[order.id,'Delivered','']),/not allowed/));
+await db.query('select public.aura_update_order($1,$2,$3)',[order.id,'Packed','']);
+await check('shipping requires courier and tracking',()=>rejects(()=>db.query('select public.aura_update_order($1,$2,$3)',[order.id,'Shipped','']),/tracking/));
+await check('cancellation restores stock',async()=>{await db.query('select public.aura_update_order($1,$2,$3)',[order.id,'Cancelled','']);assert.equal((await db.query("select stock from aura_products where id='frame-1'")).rows[0].stock,5)});
+await check('duplicate cancellation cannot restore twice',()=>rejects(()=>db.query('select public.aura_update_order($1,$2,$3)',[order.id,'Cancelled','']),/not allowed/));
+await check('seller cover photo reordering persists for buyers',async()=>{await db.query('update aura_products set payload=$1 where id=$2',[{...p,images:[...p.images].reverse()},'frame-1']);await as(buyer);assert.equal((await db.query('select payload from aura_products')).rows[0].payload.images[0],p.images[1])});
+await db.exec('reset role');await db.exec('update public.aura_store_settings set live_cod=true');await as(buyer);
+await check('live COD switch changes stored order mode',async()=>{const o=await place('live-cod-order-request1',[{...items[0],qty:1}]);assert.equal(o.preview,false);assert.equal(o.payment,'Cash on delivery')});
+await as(buyer);await check('buyer cannot upload product photos',()=>rejects(()=>db.query("insert into storage.objects(bucket_id,name) values('product-photos','bad.jpg')"),/row-level security/));
+await as(owner);await check('seller can upload product photos',async()=>{await db.query("insert into storage.objects(bucket_id,name) values('product-photos','good.jpg')")});
+await db.exec('reset role');
+await db.exec(await fs.readFile(new URL('../supabase/04-owner-email.sql',import.meta.url),'utf8'));
+const reserved='00000000-0000-4000-8000-000000000004';
+await check('unverified owner email cannot become seller',async()=>{await db.query('insert into auth.users(id,email) values($1,$2)',[reserved,'000manoj0@gmail.com']);assert.equal((await db.query('select * from public.aura_seller_accounts where user_id=$1',[reserved])).rows.length,0)});
+await check('verified approved Gmail receives seller access automatically',async()=>{await db.query('update auth.users set email_confirmed_at=now() where id=$1',[reserved]);assert.equal((await db.query('select * from public.aura_seller_accounts where user_id=$1',[reserved])).rows.length,1)});
+await check('buyer metadata cannot impersonate owner email',async()=>{await db.query('update auth.users set raw_user_meta_data=$1,email_confirmed_at=now() where id=$2',[{email:'000manoj0@gmail.com',role:'seller'},other]);assert.equal((await db.query('select * from public.aura_seller_accounts where user_id=$1',[other])).rows.length,0)});
+await check('approved email changed away loses its automatic seller grant',async()=>{await db.query('update auth.users set email=$1 where id=$2',['different@example.test',reserved]);assert.equal((await db.query('select * from public.aura_seller_accounts where user_id=$1',[reserved])).rows.length,0)});
+await db.close();console.log(`${checks} commerce/security checks passed.`);

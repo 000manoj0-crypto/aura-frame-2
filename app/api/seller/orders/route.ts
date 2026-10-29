@@ -1,0 +1,3 @@
+import {seller,json,error,originCheck,body,databaseError} from '../../../../lib/server';
+export async function GET(){try{const {db}=await seller();const {data,error:e}=await db.from('aura_orders').select('payload,status').order('created_at',{ascending:false}).limit(200);if(e)throw e;return json({orders:(data||[]).map(r=>({...r.payload,status:r.status}))})}catch(e){return error(e)}}
+export async function POST(req:Request){try{originCheck(req);const {db}=await seller();const b=await body(req);const {data,error:e}=await db.rpc('aura_update_order',{p_id:String(b.id),p_status:b.status,p_tracking:String(b.tracking||'')});if(e)databaseError(e);return json({order:data})}catch(e){return error(e)}}
